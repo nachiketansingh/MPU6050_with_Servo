@@ -1,0 +1,103 @@
+#include <Wire.h>
+#include<Servo.h>
+
+
+Servo myservo;
+int servopin=9;
+float servoangle=90;
+
+// raw accelerometer readings
+float AccX, AccY, AccZ;
+
+// Calibration variables
+float AccCalibrationX = 0, AccCalibrationY = 0, AccCalibrationZ = 0;
+int CalibrationSamples = 2000;
+
+// Function to read accelerometer data
+void accel_signals(void) {
+  Wire.beginTransmission(0x68);
+  Wire.write(0x3B); 
+  Wire.endTransmission(false);
+  Wire.requestFrom(0x68, 6, true);
+
+  int16_t RawAccX = Wire.read() << 8 | Wire.read();
+  int16_t RawAccY = Wire.read() << 8 | Wire.read();
+  int16_t RawAccZ = Wire.read() << 8 | Wire.read();
+
+  // Convert raw data to g (assuming 16384 LSB/g for ±2g setting)
+  AccX = (float)RawAccX / 16384.0;
+  AccY = (float)RawAccY / 16384.0;
+  AccZ = (float)RawAccZ / 16384.0;
+}
+
+void setup() {
+
+  // pinMode(servopin,INPUT);
+  myservo.attach(servopin);
+  myservo.write(servoangle);
+
+  Serial.begin(9600); // <-- Match this with Serial Monitor baud rate
+  Wire.begin();
+  delay(250);
+
+  // Wake up the MPU6050
+  Wire.beginTransmission(0x68);
+  Wire.write(0x6B);
+  Wire.write(0x00);
+  Wire.endTransmission();
+
+  // Calibration: take many readings and average them
+  for (int i = 0; i < CalibrationSamples; i++) {
+    accel_signals();
+    AccCalibrationX += AccX;
+    AccCalibrationY += AccY;
+    AccCalibrationZ += AccZ;
+    delay(1); // 1ms between readings
+  }
+  AccCalibrationX /= CalibrationSamples;
+  AccCalibrationY /= CalibrationSamples;
+  AccCalibrationZ /= CalibrationSamples;
+
+  Serial.println("Calibration Complete!");
+}
+
+void loop() {
+  accel_signals();
+
+  // Correct readings by subtracting calibration offsets
+  float CalibAccX = AccX - AccCalibrationX;
+  float CalibAccY = AccY - AccCalibrationY;
+  float CalibAccZ = AccZ - AccCalibrationZ;
+
+  // Print calibrated X, Y, Z values
+  // Serial.print("X: "); Serial.print(CalibAccX, 4); Serial.print(" g\t");
+  // Serial.print("Y: "); Serial.print(CalibAccY, 4); Serial.print(" g\t");
+  // Serial.print("Z: "); Serial.print(CalibAccZ, 4); Serial.println(" g");
+
+  // delay(200); // slow down output
+  // // CalibAccY=CalibAccY*100;
+  // servoangle = map(CalibAccY,-96,94,180,0);
+  // servoangle = constrain(servoangle, 0,180);
+
+
+  
+  CalibAccY=(CalibAccY*100 + 100);
+
+  // For 180 degree 
+  servoangle = map(CalibAccY,0,200,180,0);
+  servoangle = constrain(servoangle, 0,180);
+
+
+  // // For 360 degree 
+  // servoangle = map(CalibAccY,0,200,369,0);
+  // servoangle = constrain(servoangle, 0,360);
+
+  // servoangle=((180/200)*CalibAccY);
+
+  Serial.print("Y: "); Serial.print(CalibAccY, 3);
+  Serial.print("  Angle "); Serial.println(servoangle); 
+  delay(40);
+
+  myservo.write(servoangle);
+
+}
